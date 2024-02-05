@@ -21,7 +21,7 @@ from utils_model import *
 T = 1000
 IMG_SIZE = 64
 BATCH_SIZE = 1
-epochs = 5 # Try more!
+epochs = 200 # Try more!
 # Image Folder
 ImageF = 'source'
 ImageF2 = 'target'
@@ -82,6 +82,7 @@ def get_loss(model, x_0, t):
     x_noisy, noise = forward_diffusion_sample(x_0, t, device)
     x_0 = x_0.to(device)
     x_concatenated = torch.cat((x_noisy, x_0), dim=1)
+    #print("x_concatenated - size: ", x_concatenated.size())
     noise_pred = model(x_concatenated, t)   
     return F.l1_loss(noise, noise_pred)
 def get_loss2(model2, x_0, y_0, t):
@@ -105,11 +106,11 @@ def sample_timestep(x, x_0, y, t, model, model2):
     sqrt_recip_alphas_t = get_index_from_list(sqrt_recip_alphas, t, x.shape)
     
     x_0 = x_0.to(device)
-    print("x - size: ", x.size())
-    print("x_0 - size: ", x_0.size())
-    x_concatenated = torch.cat((x, x_0), dim=0)  # Concatenate error Expected size 1 but got size 5 for tensor number 1 in the list.
-    y_concatenated = torch.cat((y, x_0), dim=0)
-    print("x_concatenated - size: ", x_concatenated.size())
+    #print("x - size: ", x.size())
+    #print("x_0 - size: ", x_0.size())
+    x_concatenated = torch.cat((x, x_0), dim=1)  # Concatenate error Expected size 1 but got size 5 for tensor number 1 in the list.
+    y_concatenated = torch.cat((y, x_0), dim=1)
+    #print("x_concatenated - size: ", x_concatenated.size())
     # Call model (current image - noise prediction)
     # Mean for X
     model_mean_X = sqrt_recip_alphas_t * (
@@ -222,7 +223,7 @@ if __name__ == '__main__':
           if epoch % 5 == 0 and step == 0:
             print(f"Model1-> Epoch {epoch} | step {step:03d} Loss: {loss.item()} ")
             print(f"Model2-> Epoch {epoch} | step {step:03d} Loss: {loss2.item()} ")
-            print(batch[0].shape)
+            #print(batch[0].shape)
             save_fig_name = "logs/Model1_sample_plot_image_"
             save_fig_name2 = "logs/Model2_sample_plot_image_"
             sample_plot_image(epochs, T, IMG_SIZE, model, batch[0], model2, save_fig_name)
