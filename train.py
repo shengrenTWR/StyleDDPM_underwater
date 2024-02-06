@@ -12,19 +12,20 @@ from utils import *
 from utils_model import *
 
 # Tasks
-# 1. x_concatenated = torch.cat((x, x_0), dim=1) owing to the batch size. 
-
+# 1. x_concatenated = torch.cat((x, x_0), dim=1) owing to the batch size. (solved)
+# 2. Check x_0 if it needs to feed into sampling several time? 
+# 180, 185, 133-135
 
 
 
 # Hyperparameters and parameter
-T = 1000
+T = 2000
 IMG_SIZE = 64
 BATCH_SIZE = 1
-epochs = 200 # Try more!
-# Image Folder
-ImageF = 'source'
-ImageF2 = 'target'
+epochs = 1500 # Try more!
+# Image Folder  Originaaly,   ImageF = 'source' ImageF2 = 'target'
+ImageF2 = 'source'  
+ImageF = 'target'
 # Save model's name
 save_dir = 'models/model.pt' 
 save_dir2 = 'models/model2.pt' 
@@ -130,8 +131,8 @@ def sample_timestep(x, x_0, y, t, model, model2):
         return x_t_minus_1, y_t_minus_1
     elif t == 0:       # t == 1
         noise = torch.randn_like(x)
-        x_t_minus_1 = model_mean_X + torch.sqrt(posterior_variance_t) * noise # This is also a Fake Input
-        y_t_minus_1 = model_mean_Y + torch.sqrt(posterior_variance_t) * noise
+        x_t_minus_1 = model_mean_X # This is also a Fake Input
+        y_t_minus_1 = model_mean_Y 
         #print("t = 0")
         return x_t_minus_1, y_t_minus_1
     else:            # t > 1  
@@ -150,7 +151,7 @@ def sample_plot_image(epochs, T, IMG_SIZE, model, x_0, model2, save_fig_name):
     img_size = IMG_SIZE
     img = torch.randn((1, 3, img_size, img_size), device=device)
     img2 = torch.randn((1, 3, img_size, img_size), device=device)   # It just a Fake Input
-    plt.figure(figsize=(15,15))
+    plt.figure(figsize=(3,3))
     plt.axis('off')
     num_images = 10
     stepsize = int(T/num_images)
@@ -164,7 +165,10 @@ def sample_plot_image(epochs, T, IMG_SIZE, model, x_0, model2, save_fig_name):
     
     show_tensor_image(img2.detach().cpu())
     plt.show()
-    plt.savefig(save_fig_name+"_y_0_"+"IMG_SIZE_"+str(IMG_SIZE)+"_epochs_"+str(epochs)+"_T_"+str(T)+".png") 
+    plt.savefig(save_fig_name+"_y_0_paper3"+"IMG_SIZE_"+str(IMG_SIZE)+"_epochs_"+str(epochs)+"_T_"+str(T)+".png") 
+    show_tensor_image(img.detach().cpu())
+    plt.show()
+    plt.savefig(save_fig_name+"_x_0_paper3"+"IMG_SIZE_"+str(IMG_SIZE)+"_epochs_"+str(epochs)+"_T_"+str(T)+".png") 
     
     
 
@@ -173,12 +177,12 @@ if __name__ == '__main__':
     data=torchvision.datasets.ImageFolder(ImageF)
     show_images(data)    
     data = load_transformed_dataset(ImageF)
-    dataloader = DataLoader(data, batch_size=BATCH_SIZE, shuffle=True, drop_last=True)
+    dataloader = DataLoader(data, batch_size=BATCH_SIZE)
     
     data2=torchvision.datasets.ImageFolder(ImageF2)
     show_images(data2)    
     data2 = load_transformed_dataset(ImageF2)
-    dataloader2 = DataLoader(data2, batch_size=BATCH_SIZE, shuffle=True, drop_last=True)
+    dataloader2 = DataLoader(data2, batch_size=BATCH_SIZE)
     
     
     # Simulate forward diffusion
