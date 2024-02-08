@@ -19,16 +19,16 @@ from utils_model import *
 
 
 # Hyperparameters and parameter
-T = 2000
-IMG_SIZE = 64
+T = 1000
+IMG_SIZE = 256
 BATCH_SIZE = 1
-epochs = 1500 # Try more!
+epochs = 50 # Try more!
 # Image Folder  Originaaly,   ImageF = 'source' ImageF2 = 'target'
 ImageF2 = 'source'  
 ImageF = 'target'
 # Save model's name
-save_dir = 'models/model.pt' 
-save_dir2 = 'models/model2.pt' 
+save_dir = 'models/model_paper10.pt' 
+save_dir2 = 'models/model2_paper10.pt' 
 
 # Define beta schedule
 betas = linear_beta_schedule(timesteps=T)
@@ -165,10 +165,11 @@ def sample_plot_image(epochs, T, IMG_SIZE, model, x_0, model2, save_fig_name):
     
     show_tensor_image(img2.detach().cpu())
     plt.show()
-    plt.savefig(save_fig_name+"_y_0_paper3"+"IMG_SIZE_"+str(IMG_SIZE)+"_epochs_"+str(epochs)+"_T_"+str(T)+".png") 
+    plt.savefig(save_fig_name+"_y_0_paper10"+"IMG_SIZE_"+str(IMG_SIZE)+"_epochs_"+str(epochs)+"_T_"+str(T)+".png") 
     show_tensor_image(img.detach().cpu())
     plt.show()
-    plt.savefig(save_fig_name+"_x_0_paper3"+"IMG_SIZE_"+str(IMG_SIZE)+"_epochs_"+str(epochs)+"_T_"+str(T)+".png") 
+    plt.savefig(save_fig_name+"_x_0_paper10"+"IMG_SIZE_"+str(IMG_SIZE)+"_epochs_"+str(epochs)+"_T_"+str(T)+".png") 
+    plt.close()
     
     
 
@@ -200,8 +201,8 @@ if __name__ == '__main__':
         show_tensor_image(img)    
     
     # Define model
-    model = SimpleUnet2image()
-    model2 = SimpleUnet()
+    model = build_unet2()
+    model2 = build_unet()
     # print("Num params: ", sum(p.numel() for p in model.parameters()))
     # print(model)    
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -228,8 +229,8 @@ if __name__ == '__main__':
             print(f"Model1-> Epoch {epoch} | step {step:03d} Loss: {loss.item()} ")
             print(f"Model2-> Epoch {epoch} | step {step:03d} Loss: {loss2.item()} ")
             #print(batch[0].shape)
-            save_fig_name = "logs/Model1_sample_plot_image_"
-            save_fig_name2 = "logs/Model2_sample_plot_image_"
+            save_fig_name = "logs3/Model1_sample_plot_image_"
+            save_fig_name2 = "logs3/Model2_sample_plot_image_"
             sample_plot_image(epochs, T, IMG_SIZE, model, batch[0], model2, save_fig_name)
             sample_plot_image(epochs, T, IMG_SIZE, model, batch[0], model2, save_fig_name2) # We should create a new one for transfer function
             
