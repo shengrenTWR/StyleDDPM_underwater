@@ -3,35 +3,6 @@ import matplotlib.pyplot as plt
 from torch import nn
 import math
 
-class Block(nn.Module):
-    def __init__(self, in_ch, out_ch, time_emb_dim, up=False):   # 這邊是建立 operation
-        super().__init__()
-        self.time_mlp =  nn.Linear(time_emb_dim, out_ch)
-        if up:
-            self.conv1 = nn.Conv2d(2*in_ch, out_ch, 3, padding=1)
-            self.transform = nn.ConvTranspose2d(out_ch, out_ch, 4, 2, 1)  # deconvolution (upsampling) 這邊往上變2倍
-        else:
-            self.conv1 = nn.Conv2d(in_ch, out_ch, 3, padding=1)
-            self.transform = nn.Conv2d(out_ch, out_ch, 4, 2, 1)
-        self.conv2 = nn.Conv2d(out_ch, out_ch, 3, padding=1)
-        self.bnorm1 = nn.BatchNorm2d(out_ch)
-        self.bnorm2 = nn.BatchNorm2d(out_ch)
-        self.relu  = nn.ReLU()
-
-    def forward(self, x, t, ):   # 這邊是實際執行的部份。 這邊的double convolution 是Unet的精神  這裡也把 time step information 考慮進去了
-        # First Conv               這邊position embedding 就是加在每一個 residual block 裡面
-        h = self.bnorm1(self.relu(self.conv1(x)))
-        # Time embedding
-        time_emb = self.relu(self.time_mlp(t))
-        # Extend last 2 dimensions
-        time_emb = time_emb[(..., ) + (None, ) * 2]
-        # Add time channel     Add time embedding here 
-        h = h + time_emb
-        # Second Conv
-        h = self.bnorm2(self.relu(self.conv2(h)))
-        # Down or Upsample
-        return self.transform(h)
-
 class SinusoidalPositionEmbeddings(nn.Module):
     def __init__(self, dim):
         super().__init__()
@@ -47,106 +18,166 @@ class SinusoidalPositionEmbeddings(nn.Module):
         # TODO: Double check the ordering here
         return embeddings
 
-
-class SimpleUnet(nn.Module):
-    """
-    A simplified variant of the Unet architecture.
-    """
-    def __init__(self):
+    
+class conv_block(nn.Module):
+    def __init__(self, in_c, out_c, time_emb_dim):
         super().__init__()
-        image_channels = 3
-        down_channels = (64, 128, 256, 512, 1024)
-        up_channels = (1024, 512, 256, 128, 64)
-        out_dim = 3
+        self.time_mlp =  nn.Linear(time_emb_dim, out_c)
+        self.conv1 = nn.Conv2d(in_c, out_c, kernel_size=3, padding=1)
+        self.bn1 = nn.BatchNorm2d(out_c)
+        self.conv2 = nn.Conv2d(out_c, out_c, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm2d(out_c)
+        self.relu = nn.ReLU()
+    def forward(self, inputs, t,):
+        x = self.conv1(inputs)
+        x = self.relu(x)
+        x = self.bn1(x)
+        # Time embedding
+        time_emb = self.relu(self.time_mlp(t))
+        # Extend last 2 dimensions
+        time_emb = time_emb[(..., ) + (None, ) * 2]
+        # Add time channel     Add time embedding here 
+        x = x + time_emb
+        x = self.conv2(x)
+        x = self.relu(x)
+        x = self.bn2(x)
+        return x
+    
+    
+    
+class encoder_block(nn.Module):
+    def __init__(self, in_c, out_c):
+        super().__init__()
         time_emb_dim = 32
-
         # Time embedding
         self.time_mlp = nn.Sequential(
                 SinusoidalPositionEmbeddings(time_emb_dim),
                 nn.Linear(time_emb_dim, time_emb_dim),
                 nn.ReLU()
-            )
-
-        # Initial projection
-        self.conv0 = nn.Conv2d(image_channels, down_channels[0], 3, padding=1) #這邊做了 downsample
-
-        # Downsample                                 #做完 downsample 之後立刻接了 由剛剛block 建立的double convolution
-        self.downs = nn.ModuleList([Block(down_channels[i], down_channels[i+1], \
-                                    time_emb_dim) \
-                    for i in range(len(down_channels)-1)])
-        # Upsample
-        self.ups = nn.ModuleList([Block(up_channels[i], up_channels[i+1], \
-                                        time_emb_dim, up=True) \
-                    for i in range(len(up_channels)-1)])
-
-        # Edit: Corrected a bug found by Jakub C (see YouTube comment)
-        self.output = nn.Conv2d(up_channels[-1], out_dim, 1)
-
-    def forward(self, x, timestep):
+            )        
+        self.conv = conv_block(in_c, out_c, time_emb_dim)
+        self.pool = nn.MaxPool2d((2, 2))
+    def forward(self, inputs, timestep):
         # Embedd time
         t = self.time_mlp(timestep)
-        # Initial conv
-        x = self.conv0(x)
-        # Unet
-        residual_inputs = []
-        for down in self.downs:
-            x = down(x, t)
-            residual_inputs.append(x)         # 要將每一層與等等 upsample 對接
-        for up in self.ups:
-            residual_x = residual_inputs.pop()
-            # Add residual x as additional channels
-            x = torch.cat((x, residual_x), dim=1)   # 這邊就是對接 concat
-            x = up(x, t)
-        return self.output(x)
+        x = self.conv(inputs, t)
+        p = self.pool(x)
+        return x, p    
     
-    
-class SimpleUnet2image(nn.Module):
-    """
-    A simplified variant of the Unet architecture.
-    """
-    def __init__(self):
+class decoder_block(nn.Module):
+    def __init__(self, in_c, out_c):
         super().__init__()
-        image_channels = 6     # Original is 3
-        down_channels = (64, 128, 256, 512, 1024)
-        up_channels = (1024, 512, 256, 128, 64)
-        out_dim = 3
         time_emb_dim = 32
-
         # Time embedding
         self.time_mlp = nn.Sequential(
                 SinusoidalPositionEmbeddings(time_emb_dim),
                 nn.Linear(time_emb_dim, time_emb_dim),
                 nn.ReLU()
-            )
-
-        # Initial projection
-        self.conv0 = nn.Conv2d(image_channels, down_channels[0], 3, padding=1) #這邊做了 downsample
-
-        # Downsample                                 #做完 downsample 之後立刻接了 由剛剛block 建立的double convolution
-        self.downs = nn.ModuleList([Block(down_channels[i], down_channels[i+1], \
-                                    time_emb_dim) \
-                    for i in range(len(down_channels)-1)])
-        # Upsample
-        self.ups = nn.ModuleList([Block(up_channels[i], up_channels[i+1], \
-                                        time_emb_dim, up=True) \
-                    for i in range(len(up_channels)-1)])
-
-        # Edit: Corrected a bug found by Jakub C (see YouTube comment)
-        self.output = nn.Conv2d(up_channels[-1], out_dim, 1)
-
-    def forward(self, x, timestep):
+            )        
+        self.up = nn.ConvTranspose2d(in_c, out_c, kernel_size=2, stride=2, padding=0)
+        self.conv = conv_block(out_c+out_c, out_c, time_emb_dim)
+    def forward(self, inputs, skip, timestep):
         # Embedd time
         t = self.time_mlp(timestep)
-        # Initial conv
-        x = self.conv0(x)
-        # Unet
-        residual_inputs = []
-        for down in self.downs:
-            x = down(x, t)
-            residual_inputs.append(x)         
-        for up in self.ups:
-            residual_x = residual_inputs.pop()
-            # Add residual x as additional channels
-            x = torch.cat((x, residual_x), dim=1) 
-            x = up(x, t)
-        return self.output(x)
+        x = self.up(inputs)
+        x = torch.cat([x, skip], axis=1)
+        x = self.conv(x, t)
+        return x
+    
+class build_unet(nn.Module):
+    def __init__(self):
+        super().__init__()
+        time_emb_dim = 32
+        # Time embedding
+        self.time_mlp = nn.Sequential(
+                SinusoidalPositionEmbeddings(time_emb_dim),
+                nn.Linear(time_emb_dim, time_emb_dim),
+                nn.ReLU()
+            )  
+        # """ Encoder """
+        self.e1 = encoder_block(3, 64)
+        self.e2 = encoder_block(64, 128)
+        self.e3 = encoder_block(128, 256)
+        self.e4 = encoder_block(256, 512)
+        # """ Bottleneck """
+        self.b = conv_block(512, 1024, time_emb_dim)
+        # """ Decoder """
+        self.d1 = decoder_block(1024, 512)
+        self.d2 = decoder_block(512, 256)
+        self.d3 = decoder_block(256, 128)
+        self.d4 = decoder_block(128, 64)
+        # """ Classifier """
+        self.outputs = nn.Conv2d(64, 3, kernel_size=1, padding=0)
+    def forward(self, inputs, timestep):
+        # Embedd time
+        t = self.time_mlp(timestep)
+        #""" Encoder """
+        s1, p1 = self.e1(inputs, timestep)
+        s2, p2 = self.e2(p1, timestep)
+        s3, p3 = self.e3(p2, timestep)
+        s4, p4 = self.e4(p3, timestep)
+        # """ Bottleneck """
+        b = self.b(p4, t)
+        # """ Decoder """
+        d1 = self.d1(b, s4, timestep)
+        d2 = self.d2(d1, s3, timestep)
+        d3 = self.d3(d2, s2, timestep)
+        d4 = self.d4(d3, s1, timestep)
+        # """ Classifier """
+        outputs = self.outputs(d4)
+        return outputs 
+    
+    
+    
+    
+    
+    
+class build_unet2(nn.Module):
+    def __init__(self):
+        super().__init__()
+        time_emb_dim = 32
+        # Time embedding
+        self.time_mlp = nn.Sequential(
+                SinusoidalPositionEmbeddings(time_emb_dim),
+                nn.Linear(time_emb_dim, time_emb_dim),
+                nn.ReLU()
+            )  
+        # """ Encoder """
+        self.e1 = encoder_block(6, 64)
+        self.e2 = encoder_block(64, 128)
+        self.e3 = encoder_block(128, 256)
+        self.e4 = encoder_block(256, 512)
+        # """ Bottleneck """
+        self.b = conv_block(512, 1024, time_emb_dim)
+        # """ Decoder """
+        self.d1 = decoder_block(1024, 512)
+        self.d2 = decoder_block(512, 256)
+        self.d3 = decoder_block(256, 128)
+        self.d4 = decoder_block(128, 64)
+        # """ Classifier """
+        self.outputs = nn.Conv2d(64, 3, kernel_size=1, padding=0)
+    def forward(self, inputs, timestep):
+        # Embedd time
+        t = self.time_mlp(timestep)
+        #""" Encoder """
+        s1, p1 = self.e1(inputs, timestep)
+        s2, p2 = self.e2(p1, timestep)
+        s3, p3 = self.e3(p2, timestep)
+        s4, p4 = self.e4(p3, timestep)
+        # """ Bottleneck """
+        b = self.b(p4, t)
+        # """ Decoder """
+        d1 = self.d1(b, s4, timestep)
+        d2 = self.d2(d1, s3, timestep)
+        d3 = self.d3(d2, s2, timestep)
+        d4 = self.d4(d3, s1, timestep)
+        # """ Classifier """
+        outputs = self.outputs(d4)
+        return outputs 
+    
+    
+    
+    
+    
+    
+    
