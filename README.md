@@ -13,7 +13,7 @@ git clone https://github.com/shengrenTWR/StyleDDPM_underwater.git
 cd StyleDDPM_underwater
 
 # Make a conda environment.
-conda create --name StyleDDPM_underwater python=3.8
+conda create --name StyleDDPM_underwater 
 conda activate StyleDDPM_underwater
 
 # Prepare pip.
