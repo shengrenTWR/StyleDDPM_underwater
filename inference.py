@@ -14,15 +14,20 @@ from utils_model import *
 
 # Hyperparameters and parameter
 T = 1000
-IMG_SIZE = 128
-BATCH_SIZE = 5
+IMG_SIZE = 256
+BATCH_SIZE = 1
+learning_rate = 0.00001   # original is 0.001
+epochs = 1000 # Try more!
 # Image Folder
-ImageF = 'source'
+ImageF = 'target'
 # Load model
-load_dir = 'models/model.pt'   
+load_dir = 'models/model_paper11.pt'   
+load_dir2 = 'models/model2_paper11.pt'   
 model = torch.load(load_dir)    
+model2 = torch.load(load_dir2)  
 device = "cuda" if torch.cuda.is_available() else "cpu"
-model.to(device)    
+model.to(device)   
+model2.to(device)  
 
 # Define beta schedule
 betas = linear_beta_schedule(timesteps=T)
@@ -75,7 +80,7 @@ def show_tensor_image(image):
     plt.imshow(reverse_transforms(image))
 
 @torch.no_grad()
-def sample_timestep(x, t):
+def sample_timestep(x, x_0, y, t, model, model2):
     """
     Calls the model to predict the noise in the image and returns
     the denoised image.
@@ -86,48 +91,81 @@ def sample_timestep(x, t):
         sqrt_one_minus_alphas_cumprod, t, x.shape
     )
     sqrt_recip_alphas_t = get_index_from_list(sqrt_recip_alphas, t, x.shape)
-
+    
+    x_0 = x_0.to(device)
+    #print("x - size: ", x.size())
+    #print("x_0 - size: ", x_0.size())
+    x_concatenated = torch.cat((x, x_0), dim=1)  # Concatenate error Expected size 1 but got size 5 for tensor number 1 in the list.
+    y_concatenated = torch.cat((y, x_0), dim=1)
+    #print("x_concatenated - size: ", x_concatenated.size())
     # Call model (current image - noise prediction)
-    model_mean = sqrt_recip_alphas_t * (
-        x - betas_t * model(x, t) / sqrt_one_minus_alphas_cumprod_t
+    # Mean for X
+    model_mean_X = sqrt_recip_alphas_t * (
+        x - betas_t * model(x_concatenated, t) / sqrt_one_minus_alphas_cumprod_t
     )
-    posterior_variance_t = get_index_from_list(posterior_variance, t, x.shape)
-
-    if t == 0:
-        # As pointed out by Luis Pereira (see YouTube comment)
-        # The t's are offset from the t's in the paper
-        return model_mean
-    else:
+    # Mean for Y 
+    model_mean_Y = sqrt_recip_alphas_t * (
+        y - betas_t * model(y_concatenated, t) / sqrt_one_minus_alphas_cumprod_t
+    )    
+    # B_t
+    posterior_variance_t = get_index_from_list(posterior_variance, t, x.shape)   
+    if t == T-1:       # t == T
         noise = torch.randn_like(x)
-        return model_mean + torch.sqrt(posterior_variance_t) * noise
+        x_t_minus_1 = model_mean_X + torch.sqrt(posterior_variance_t) * noise
+        y_t_minus_1 = model2(x_t_minus_1, t)
+        #print("t = T-1")
+        return x_t_minus_1, y_t_minus_1
+    elif t == 0:       # t == 1
+        noise = torch.randn_like(x)
+        x_t_minus_1 = model_mean_X # This is also a Fake Input
+        y_t_minus_1 = model_mean_Y 
+        #print("t = 0")
+        return x_t_minus_1, y_t_minus_1
+    else:            # t > 1  
+        noise = torch.randn_like(x)
+        x_t_minus_1 = model_mean_X + torch.sqrt(posterior_variance_t) * noise
+        y_t_minus_1 = model_mean_Y + torch.sqrt(posterior_variance_t) * noise \
+                    + model2(x_t_minus_1, t)
+        y_t_minus_1 = (1/torch.sqrt(torch.tensor(2)))*(y_t_minus_1 - (2*sqrt_recip_alphas_t)*(y - betas_t * model(y_concatenated, t) / sqrt_one_minus_alphas_cumprod_t) ) \
+                    + (1*sqrt_recip_alphas_t)*(y - betas_t * model(y_concatenated, t) / sqrt_one_minus_alphas_cumprod_t)
+        #print("t > 1")
+        return x_t_minus_1, y_t_minus_1
 
 @torch.no_grad()
-def sample_plot_image():
+def sample_plot_image(epochs, T, IMG_SIZE, model, x_0, model2, save_fig_name):
     # Sample noise
     img_size = IMG_SIZE
     img = torch.randn((1, 3, img_size, img_size), device=device)
-    plt.figure(figsize=(15,15))
+    img2 = torch.randn((1, 3, img_size, img_size), device=device)   # It just a Fake Input
+    plt.figure(figsize=(3,3))
     plt.axis('off')
     num_images = 10
     stepsize = int(T/num_images)
 
     for i in range(0,T)[::-1]:
         t = torch.full((1,), i, device=device, dtype=torch.long)
-        img = sample_timestep(img, t)
+        img, img2 = sample_timestep(img, x_0, img2, t, model, model2)
         # Edit: This is to maintain the natural range of the distribution
         img = torch.clamp(img, -1.0, 1.0)
+        img2 = torch.clamp(img2, -1.0, 1.0)
     
+    show_tensor_image(img2.detach().cpu())
+    plt.show()
+    plt.savefig(save_fig_name+"_y_0_paper11"+"IMG_SIZE_"+str(IMG_SIZE)+"_epochs_"+str(epochs)+"_T_"+str(T)+"_lr_"+str(learning_rate)+".png") 
     show_tensor_image(img.detach().cpu())
     plt.show()
-    plt.savefig("logs/sample_plot_image_inference_"+".png") 
-
+    plt.savefig(save_fig_name+"_x_0_paper11"+"IMG_SIZE_"+str(IMG_SIZE)+"_epochs_"+str(epochs)+"_T_"+str(T)+"_lr_"+str(learning_rate)+".png") 
+    plt.close()
 
 if __name__ == '__main__':
     data=torchvision.datasets.ImageFolder(ImageF)
     show_images(data)
     data = load_transformed_dataset()
     dataloader = DataLoader(data, batch_size=BATCH_SIZE, shuffle=True, drop_last=True)
-    sample_plot_image()
-
+    i = 0
+    for step, batch in enumerate(dataloader):
+        save_fig_name = "logs3/Inference_sample_plot_image_" + str(i)
+        sample_plot_image(epochs, T, IMG_SIZE, model, batch[0], model2, save_fig_name)
+        i=i+1
         
         
