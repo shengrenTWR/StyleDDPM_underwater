@@ -16,19 +16,22 @@ from utils_model import *
 # 2. Check x_0 if it needs to feed into sampling several time? 
 # 180, 185, 133-135
 
+## 1. Check training dataset if they are consistent.
+
 
 
 # Hyperparameters and parameter
 T = 1000
 IMG_SIZE = 256
 BATCH_SIZE = 1
-epochs = 50 # Try more!
+learning_rate = 0.00001   # original is 0.001
+epochs = 1000 # Try more!
 # Image Folder  Originaaly,   ImageF = 'source' ImageF2 = 'target'
 ImageF2 = 'source'  
 ImageF = 'target'
 # Save model's name
-save_dir = 'models/model_paper10.pt' 
-save_dir2 = 'models/model2_paper10.pt' 
+save_dir = 'models/model_paper11.pt' 
+save_dir2 = 'models/model2_paper11.pt' 
 
 # Define beta schedule
 betas = linear_beta_schedule(timesteps=T)
@@ -86,7 +89,7 @@ def get_loss(model, x_0, t):
     #print("x_concatenated - size: ", x_concatenated.size())
     noise_pred = model(x_concatenated, t)   
     return F.l1_loss(noise, noise_pred)
-def get_loss2(model2, x_0, y_0, t):
+def get_loss2(model2, x_0, y_0, t):   # debugging here
     x_noisy, noise = forward_diffusion_sample(x_0, t, device)
     y_noisy, noise = forward_diffusion_sample(y_0, t, device)
     y_noisy_pred = model2(x_noisy, t)  
@@ -165,10 +168,10 @@ def sample_plot_image(epochs, T, IMG_SIZE, model, x_0, model2, save_fig_name):
     
     show_tensor_image(img2.detach().cpu())
     plt.show()
-    plt.savefig(save_fig_name+"_y_0_paper10"+"IMG_SIZE_"+str(IMG_SIZE)+"_epochs_"+str(epochs)+"_T_"+str(T)+".png") 
+    plt.savefig(save_fig_name+"_y_0_paper11"+"IMG_SIZE_"+str(IMG_SIZE)+"_epochs_"+str(epochs)+"_T_"+str(T)+"_lr_"+str(learning_rate)+".png") 
     show_tensor_image(img.detach().cpu())
     plt.show()
-    plt.savefig(save_fig_name+"_x_0_paper10"+"IMG_SIZE_"+str(IMG_SIZE)+"_epochs_"+str(epochs)+"_T_"+str(T)+".png") 
+    plt.savefig(save_fig_name+"_x_0_paper11"+"IMG_SIZE_"+str(IMG_SIZE)+"_epochs_"+str(epochs)+"_T_"+str(T)+"_lr_"+str(learning_rate)+".png") 
     plt.close()
     
     
@@ -208,8 +211,8 @@ if __name__ == '__main__':
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model.to(device)
     model2.to(device)
-    optimizer = Adam(model.parameters(), lr=0.001)
-    optimizer2 = Adam(model2.parameters(), lr=0.001)
+    optimizer = Adam(model.parameters(), lr=learning_rate)
+    optimizer2 = Adam(model2.parameters(), lr=learning_rate)
 
     # Training (model1)
     for epoch in range(epochs):
