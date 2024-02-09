@@ -58,7 +58,7 @@ def forward_diffusion_sample(x_0, t, device="cpu"):
 def load_transformed_dataset():
     data_transforms = [
         transforms.Resize((IMG_SIZE, IMG_SIZE)),
-        transforms.RandomHorizontalFlip(),
+        #transforms.RandomHorizontalFlip(),
         transforms.ToTensor(), # Scales data into [0,1]
         transforms.Lambda(lambda t: (t * 2) - 1) # Scale between [-1, 1]
     ]
