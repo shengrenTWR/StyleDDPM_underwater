@@ -25,7 +25,7 @@ T = 1000
 IMG_SIZE = 256
 BATCH_SIZE = 1
 learning_rate = 0.00001   # original is 0.001
-epochs = 1000 # Try more!
+epochs = 10 # Try more!
 # Image Folder  Originaaly,   ImageF = 'source' ImageF2 = 'target'
 ImageF2 = 'source'  
 ImageF = 'target'
@@ -61,7 +61,7 @@ def forward_diffusion_sample(x_0, t, device="cpu"):
 def load_transformed_dataset(dirpath):
     data_transforms = [
         transforms.Resize((IMG_SIZE, IMG_SIZE)),
-        transforms.RandomHorizontalFlip(),
+        #transforms.RandomHorizontalFlip(),
         transforms.ToTensor(), # Scales data into [0,1]
         transforms.Lambda(lambda t: (t * 2) - 1) # Scale between [-1, 1]
     ]
@@ -89,7 +89,7 @@ def get_loss(model, x_0, t):
     #print("x_concatenated - size: ", x_concatenated.size())
     noise_pred = model(x_concatenated, t)   
     return F.l1_loss(noise, noise_pred)
-def get_loss2(model2, x_0, y_0, t):   # debugging here
+def get_loss2(model2, x_0, y_0, t):   # debugging here noise should be the same
     x_noisy, noise = forward_diffusion_sample(x_0, t, device)
     y_noisy, noise = forward_diffusion_sample(y_0, t, device)
     y_noisy_pred = model2(x_noisy, t)  
@@ -213,29 +213,44 @@ if __name__ == '__main__':
     model2.to(device)
     optimizer = Adam(model.parameters(), lr=learning_rate)
     optimizer2 = Adam(model2.parameters(), lr=learning_rate)
-
+    i = 1;
     # Training (model1)
     for epoch in range(epochs):
         for step, (batch, batch2) in enumerate(zip(dataloader, dataloader2)):   # How to iterate over two dataloaders simultaneously?
-          optimizer.zero_grad()
-          optimizer2.zero_grad()
+            optimizer.zero_grad()
+            optimizer2.zero_grad()
 
-          t = torch.randint(0, T, (BATCH_SIZE,), device=device).long()
-          loss = get_loss(model, batch[0], t)
-          loss.backward()
-          loss2 = get_loss2(model2, batch[0], batch2[0], t)
-          loss2.backward()
-          optimizer.step()
-          optimizer2.step()
+            
+            # Save dataset for debugging
+#             data1, labels1 = batch
+#             data2, labels2 = batch2
+    
+#             img1 = transforms.ToPILImage()(data1[0])
+#             img2 = transforms.ToPILImage()(data2[0])
+            
+#             img1.save(f'logs_for_image/batch1_image_{i}.png')
+#             img2.save(f'logs_for_image/batch2_image_{i}.png')
+#             i = i + 1
+            #=======================================================
+            
+            
+            
+            t = torch.randint(0, T, (BATCH_SIZE,), device=device).long()
+            loss = get_loss(model, batch[0], t)
+            loss.backward()
+            loss2 = get_loss2(model2, batch[0], batch2[0], t)
+            loss2.backward()
+            optimizer.step()
+            optimizer2.step()
 
-          if epoch % 5 == 0 and step == 0:
-            print(f"Model1-> Epoch {epoch} | step {step:03d} Loss: {loss.item()} ")
-            print(f"Model2-> Epoch {epoch} | step {step:03d} Loss: {loss2.item()} ")
+            if epoch % 5 == 0 and step == 0:
+                print(f"Model1-> Epoch {epoch} | step {step:03d} Loss: {loss.item()} ")
+                print(f"Model2-> Epoch {epoch} | step {step:03d} Loss: {loss2.item()} ")
             #print(batch[0].shape)
-            save_fig_name = "logs3/Model1_sample_plot_image_"
-            save_fig_name2 = "logs3/Model2_sample_plot_image_"
-            sample_plot_image(epochs, T, IMG_SIZE, model, batch[0], model2, save_fig_name)
-            sample_plot_image(epochs, T, IMG_SIZE, model, batch[0], model2, save_fig_name2) # We should create a new one for transfer function
+                save_fig_name = "logs3/Model1_sample_plot_image_"
+                save_fig_name2 = "logs3/Model2_sample_plot_image_"
+                sample_plot_image(epochs, T, IMG_SIZE, model, batch[0], model2, save_fig_name)
+                sample_plot_image(epochs, T, IMG_SIZE, model, batch[0], model2, save_fig_name2) # We should create a new one for transfer function
             
             
  
