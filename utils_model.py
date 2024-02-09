@@ -43,6 +43,46 @@ class conv_block(nn.Module):
         x = self.bn2(x)
         return x
     
+class conv_block2(nn.Module):
+    def __init__(self, in_c, out_c, time_emb_dim):
+        super().__init__()
+        self.time_mlp =  nn.Linear(time_emb_dim, out_c)
+        self.conv1 = nn.Conv2d(in_c, out_c, kernel_size=3, padding=1)
+        self.bn1 = nn.BatchNorm2d(out_c)
+        self.conv2 = nn.Conv2d(out_c, out_c, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm2d(out_c)
+        self.conv3 = nn.Conv2d(out_c, out_c, kernel_size=3, padding=1)
+        self.bn3 = nn.BatchNorm2d(out_c)
+        self.conv4 = nn.Conv2d(out_c, out_c, kernel_size=3, padding=1)
+        self.bn4 = nn.BatchNorm2d(out_c)
+        self.relu = nn.ReLU()
+    def forward(self, inputs, t,):
+        x = self.conv1(inputs)
+        x = self.relu(x)
+        x = self.bn1(x)
+        # Time embedding
+        time_emb = self.relu(self.time_mlp(t))
+        # Extend last 2 dimensions
+        time_emb = time_emb[(..., ) + (None, ) * 2]
+        # Add time channel     Add time embedding here 
+        x = x + time_emb
+        x = self.conv2(x)
+        x = self.relu(x)
+        x = self.bn2(x)
+ 
+        x = self.conv3(x)
+        x = self.relu(x)
+        x = self.bn3(x)
+        # Time embedding
+        time_emb = self.relu(self.time_mlp(t))
+        # Extend last 2 dimensions
+        time_emb = time_emb[(..., ) + (None, ) * 2]
+        # Add time channel     Add time embedding here       
+        x = x + time_emb
+        x = self.conv4(x)
+        x = self.relu(x)
+        x = self.bn4(x)        
+        return x
     
     
 class encoder_block(nn.Module):
@@ -75,7 +115,7 @@ class decoder_block(nn.Module):
                 nn.ReLU()
             )        
         self.up = nn.ConvTranspose2d(in_c, out_c, kernel_size=2, stride=2, padding=0)
-        self.conv = conv_block(out_c+out_c, out_c, time_emb_dim)
+        self.conv = conv_block2(out_c+out_c, out_c, time_emb_dim)
     def forward(self, inputs, skip, timestep):
         # Embedd time
         t = self.time_mlp(timestep)
