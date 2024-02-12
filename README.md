@@ -24,7 +24,7 @@ pip install --upgrade pip
 pip install -r requirements.txt
 
 ```
-
+Trained models for dehazing and style transfer can be downloaded [here](https://uflorida-my.sharepoint.com/:f:/g/personal/huang_sh_ufl_edu/EtL9HFe6cF9PigvEzvHgu9IBu9-1Qh5q8BNFAVbXCqgn0w?e=GEaLWB)
 
 The work is inspired by
 
