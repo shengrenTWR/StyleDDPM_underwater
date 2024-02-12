@@ -1,6 +1,6 @@
 # DDPM-based style transfer on underwater image 
 
-This work mainly employed ddpm code from [colab](https://colab.research.google.com/drive/1sjy9odlSSy0RBVgMTgP7s99NXsqglsUL?usp=sharing) and [UNET Implementation in PyTorch — Idiot Developer](https://medium.com/analytics-vidhya/unet-implementation-in-pytorch-idiot-developer-da40d955f201).
+This work mainly employed ddpm and U-Net code from [colab](https://colab.research.google.com/drive/1sjy9odlSSy0RBVgMTgP7s99NXsqglsUL?usp=sharing) and [UNET Implementation in PyTorch — Idiot Developer](https://medium.com/analytics-vidhya/unet-implementation-in-pytorch-idiot-developer-da40d955f201).
 
 Some utilities from [denoising-diffusion-pytorch
 ](https://github.com/lucidrains/denoising-diffusion-pytorch) also included but isn't employed here.
